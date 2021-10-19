@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Deploy a VPC
+
+Parameters:
+  VPCCidrBlock:
+    Description: CIDR Block for VPC
+    Type: String
+    Default: 10.0.0.0/16
+  PublicCidrBlock:
+    Description: CIDR Block for Public Subnet
+    Type: String
+    Default: 10.0.0.0/24
+  PrivateCidrBlock:
+    Description: CIDR Block for Private Subnet
+    Type: String
+    Default: 10.0.1.0/24
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Lab VPC
+        - Key: Scope
+          Value: Lab
+
+  # An Internet gateway serves two purposes:
+  # 1. Provide a target in your VPC route tables for Internet-routable traffic,
+  # 2. Perform network address translation (NAT) for instances
+  # that have been assigned public IPv4 addresses.
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Lab Internet Gateway
+        - Key: Scope
+          Value: Lab
+
+  # In the management console, the Internet Gateway is showing that it is attached to the VPC.
+  # A VPC Gateway Attachment creates a relationship between a VPC and a gateway,
+  # such as this Internet Gateway.
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicCidrBlock
+      AvailabilityZone: !Select
+        - "0"
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: Public Subnet 1
+        - Key: Scope
+          Value: Lab
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateCidrBlock
+      # The code is retrieving a list of Availability Zones within the region
+      # and is referencing the first element from the list. 
+      # In this manner, the template can be used in any region
+      # because it retrieves the list of Availability Zones at runtime
+      # rather than having the Availability Zones hard-coded in the template.
+      AvailabilityZone: !Select
+        - "0"
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: Private Subnet 1
+        - Key: Scope
+          Value: Lab
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Route Table
+        - Key: Scope
+          Value: Lab
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # A Route Table can be associated with multiple subnets, 
+  # with each association requiring an explicit linkage. 
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private Route Table
+        - Key: Scope
+          Value: Lab
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+Outputs:
+  VPC:
+    Description: VPC
+    Value: !Ref VPC
+  AZ1:
+    Description: Availability Zone 1
+    Value: !GetAtt
+      - PublicSubnet1
+      - AvailabilityZone
